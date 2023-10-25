@@ -1,0 +1,22 @@
+{
+  "name": "erc4626",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "eslint": "^8.52.0",
+    "prettier": "^3.0.3",
+    "prettier-plugin-solidity": "^1.1.3",
+    "solhint": "^3.6.2"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "hardhat": "^2.18.3"
+  }
+}
