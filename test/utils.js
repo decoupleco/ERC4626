@@ -13,11 +13,13 @@ async function setupTokens (initialBalance = 2n ** 256n - 1n) {
   )
 }
 
-async function fetchBalances (contract, tokens) {
+async function fetchBalances (contract, tokens, opts = {}) {
   const balance = {}
-  balance.ETH = await ethers.provider.getBalance(
-    contract.address || contract.target
-  )
+  if (!opts.skipETH) {
+    balance.ETH = await ethers.provider.getBalance(
+      contract.address || contract.target
+    )
+  }
   for (const name in tokens) {
     balance[name] = await fetchBalance(contract, tokens[name])
   }
@@ -42,7 +44,7 @@ async function printBalance (balance, name, tokens) {
 async function printBalances (contracts, tokens, opts = {}) {
   console.log(`\n---${opts.context ? ' ' + opts.context : ''} balances ---`)
   for (const key in contracts) {
-    const balance = await fetchBalances(contracts[key], tokens)
+    const balance = await fetchBalances(contracts[key], tokens, opts)
     await printBalance(balance, key, tokens)
   }
   console.log()
