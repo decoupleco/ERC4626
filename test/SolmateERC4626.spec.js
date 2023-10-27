@@ -3,7 +3,7 @@ const { ethers } = require('hardhat')
 const { parseUnits } = ethers
 const utils = require('./utils')
 
-describe('[OpenzeppelinERC4626]', () => {
+describe('[SolmateERC4626]', () => {
   let deployer, user1, user2
   let contract
   let token
@@ -16,7 +16,7 @@ describe('[OpenzeppelinERC4626]', () => {
     await token.transfer(user1.address, parseUnits('1', 18))
     await token.transfer(user2.address, parseUnits('1', 18))
 
-    const sharesFactory = await ethers.getContractFactory('OpenzeppelinERC4626')
+    const sharesFactory = await ethers.getContractFactory('SolmateERC4626')
     contract = await sharesFactory.deploy(
       token.target,
       'ERC20Name',
@@ -26,7 +26,7 @@ describe('[OpenzeppelinERC4626]', () => {
     console.log('deployer:', deployer.address)
     console.log('user1:', user1.address)
     console.log('user2:', user2.address)
-    console.log('OpenzeppelinERC4626:', contract.target)
+    console.log('SolmateERC4626:', contract.target)
     console.log('token:', token.target)
 
     await utils.printBalances({ deployer, user1, user2, contract }, { token })
