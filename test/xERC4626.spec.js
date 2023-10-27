@@ -1,37 +1,40 @@
 const { expect } = require('chai')
 const { ethers } = require('hardhat')
-const { parseUnits } = ethers
+const { parseUnits, formatUnits } = ethers
+const { time, mine } = require('@nomicfoundation/hardhat-network-helpers')
 const utils = require('./utils')
 
 describe('[CustomXERC4626]', () => {
-  let deployer, user1, user2
+  let deployer, user1
   let contract
   let token
 
   before(async () => {
-    [deployer, user1, user2] = await ethers.getSigners()
+    [deployer, user1] = await ethers.getSigners()
 
     const initialBalance = parseUnits('2', 18)
     ;[token] = await utils.setupTokens(initialBalance)
     await token.transfer(user1.address, parseUnits('1', 18))
-    await token.transfer(user2.address, parseUnits('1', 18))
 
+    const timestamp = BigInt(await time.latest())
     const sharesFactory = await ethers.getContractFactory('CustomXERC4626')
-    const rewardsCycleLength = 1000
+    // 10 minutes
+    const rewardsCycleLength = 10n * 60n
     contract = await sharesFactory.deploy(
       token.target,
       'ERC20Name',
       'ERC20Symbol',
       rewardsCycleLength
     )
+    const rewardsCycleEnd = await contract.rewardsCycleEnd()
+    expect(rewardsCycleEnd).to.be.lte(timestamp)
 
     console.log('deployer:', deployer.address)
     console.log('user1:', user1.address)
-    console.log('user2:', user2.address)
     console.log('CustomXERC4626:', contract.target)
     console.log('token:', token.target)
 
-    await utils.printBalances({ deployer, user1, user2, contract }, { token })
+    await utils.printBalances({ deployer, user1, contract }, { token })
   })
 
   describe('1. [setups]', () => {
@@ -42,9 +45,7 @@ describe('[CustomXERC4626]', () => {
 
     it('1.2 users should have token balance', async () => {
       const balance1 = await token.balanceOf(user1.address)
-      const balance2 = await token.balanceOf(user2.address)
       expect(balance1).to.be.equal(parseUnits('1', 18))
-      expect(balance2).to.be.equal(parseUnits('1', 18))
     })
 
     it('1.3 shares contract should have basic token info', async () => {
@@ -58,6 +59,105 @@ describe('[CustomXERC4626]', () => {
 
     it('1.4 shares contract should have 0 assets', async () => {
       expect(await contract.totalAssets()).to.be.equal(0)
+    })
+
+    it('1.5 should have rewardsCycleLength', async () => {
+      const rewardsCycleLength = await contract.rewardsCycleLength()
+      expect(rewardsCycleLength).to.be.equal(10n * 60n)
+    })
+  })
+
+  describe('2. [deposit]', () => {
+    const amountIn = parseUnits('1', 18)
+
+    it('2.1 initial share of a user should be 0', async () => {
+      const shares = await contract.maxRedeem(user1.address)
+      expect(shares).to.be.equal(0n)
+    })
+
+    it('2.2 user can deposit token', async () => {
+      const expectedShares = await contract.convertToShares(amountIn)
+      expect(expectedShares).to.be.equal(amountIn)
+
+      await token.connect(user1).approve(contract.target, amountIn)
+      await contract.connect(user1).deposit(amountIn, user1.address)
+      const shares = await contract.maxRedeem(user1.address)
+      expect(shares).to.be.equal(expectedShares)
+    })
+
+    it('2.3 contract should have underlying assets after user deposit', async () => {
+      expect(await contract.totalAssets()).to.be.equal(amountIn)
+    })
+  })
+
+  describe('3. [reward]', () => {
+    const amountIn = parseUnits('1', 18)
+    const reward = parseUnits('0.1', 18)
+    let shares
+    before(async () => {
+      shares = await contract.maxRedeem(user1.address)
+    })
+
+    after(async () => {
+      await utils.printBalances(
+        { deployer, user1, contract },
+        { token },
+        { skipETH: true }
+      )
+    })
+
+    it('3.1 add rewards to pool will not change totalAssets', async () => {
+      await token.mint(contract.target, reward)
+      expect(await contract.lastRewardAmount()).to.be.equal(0n)
+      expect(await contract.totalAssets()).to.be.equal(amountIn)
+      expect(await contract.convertToAssets(shares)).to.be.equal(amountIn)
+      // contract token balance is 1.1, but totalAssets is still 1
+      expect(await token.balanceOf(contract.target)).to.be.equal(
+        amountIn + reward
+      )
+    })
+
+    it('3.2 after sync, everything same except lastRewardAmount', async () => {
+      expect(await contract.lastSync()).to.be.equal(0n)
+
+      await contract.syncRewards()
+
+      expect(await contract.lastRewardAmount()).to.be.equal(reward)
+      expect(await contract.totalAssets()).to.be.equal(amountIn)
+      expect(await contract.convertToAssets(shares)).to.be.equal(amountIn)
+      expect(await contract.lastSync()).to.be.gt(0n)
+    })
+
+    it('3.3 accrue part of the rewards', async () => {
+      const blockTimestamp = BigInt(await time.latest())
+      const rewardsCycleEnd = await contract.rewardsCycleEnd()
+      await time.setNextBlockTimestamp(
+        blockTimestamp + (rewardsCycleEnd - blockTimestamp) / 2n
+      )
+      await mine(1)
+
+      console.log({
+        lastSync: new Date(
+          +(await contract.lastSync()).toString() * 1000
+        ).toLocaleString(),
+        blockTimestamp: new Date((await time.latest()) * 1000).toLocaleString(),
+        rewardsCycleEnd: new Date(
+          +(await contract.rewardsCycleEnd()).toString() * 1000
+        ).toLocaleString()
+      })
+
+      expect(await contract.lastRewardAmount()).to.be.equal(reward)
+
+      const totalAssets = await contract.totalAssets()
+      expect(totalAssets).to.be.gt(amountIn)
+      expect(totalAssets).to.be.lt(amountIn + reward)
+
+      const userAssets = await contract.convertToAssets(shares)
+      expect(userAssets).to.be.gt(amountIn)
+      expect(userAssets).to.be.lt(amountIn + reward)
+      console.log({
+        userAssets: formatUnits(userAssets, 18)
+      })
     })
   })
 })
