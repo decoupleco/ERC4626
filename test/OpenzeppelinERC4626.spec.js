@@ -16,7 +16,7 @@ describe('[ERC4626]', () => {
     await token.transfer(user1.address, parseUnits('1', 18))
     await token.transfer(user2.address, parseUnits('1', 18))
 
-    const sharesFactory = await ethers.getContractFactory('CustomERC4626')
+    const sharesFactory = await ethers.getContractFactory('OpenzeppelinERC4626')
     contract = await sharesFactory.deploy(
       token.target,
       'ERC20Name',
@@ -26,7 +26,7 @@ describe('[ERC4626]', () => {
     console.log('deployer:', deployer.address)
     console.log('user1:', user1.address)
     console.log('user2:', user2.address)
-    console.log('CustomERC4626:', contract.target)
+    console.log('OpenzeppelinERC4626:', contract.target)
     console.log('token:', token.target)
 
     await utils.printBalances({ deployer, user1, user2, contract }, { token })
@@ -126,6 +126,9 @@ describe('[ERC4626]', () => {
       const shares2 = await contract.maxRedeem(user2.address)
       expect(shares1).to.be.equal(amountIn)
       expect(shares2).to.be.equal(amountIn)
+
+      const totalAssets = await contract.totalAssets()
+      expect(totalAssets).to.be.equal(amountIn * 2n)
     })
 
     it('4.1 user1 redeems 1/2 shares', async () => {

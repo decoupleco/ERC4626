@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import { ERC4626, ERC20 } from '@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol';
 
-contract CustomERC4626 is ERC4626 {
+contract OpenzeppelinERC4626 is ERC4626 {
   constructor(
     ERC20 _underlying,
     string memory _name,
